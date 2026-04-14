@@ -6,6 +6,8 @@ import time
 from src.data_generator import DataGenerator
 from src.analytics import NetworkAnalytics
 from src.anomaly import AnomalyDetector
+from src.DB import Database
+import pandas as pd
 
 
 st.set_page_config(page_title="Network NOC Dashboard", layout="wide")
@@ -14,16 +16,25 @@ st.set_page_config(page_title="Network NOC Dashboard", layout="wide")
 # 🔄 Auto refresh
 REFRESH_INTERVAL = 5  # seconds
 
-
 @st.cache_data(ttl=5)
 def load_data():
-    generator = DataGenerator(rows=1000)
-    df = generator.generate()
+    try:
+        db = Database()
+        data = db.fetch_data()
 
-    detector = AnomalyDetector()
-    df = detector.fit_predict(df)
+        df = pd.DataFrame(data, columns=[
+            "id", "timestamp", "src_ip", "dst_ip",
+            "packet_size", "latency", "protocol", "packet_loss"
+        ])
 
-    return df
+        detector = AnomalyDetector()
+        df = detector.fit_predict(df)
+
+        return df
+
+    except Exception as e:
+        st.error(f"DB Error: {e}")
+        return pd.DataFrame()
 
 
 def main():
@@ -42,7 +53,8 @@ def main():
         "Latency Threshold (ms)",
         50, 300, 150
     )
-
+    generator = DataGenerator(rows=100)
+    generator.generate()
     df = load_data()
 
     # Apply filters

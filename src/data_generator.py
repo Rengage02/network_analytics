@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 import sys
 import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-
+from src.DB import Database
 
 class DataGenerator:
     def __init__(self, rows=1000):
@@ -24,26 +24,32 @@ class DataGenerator:
                 packet_size = random.randint(64, 1500)
                 latency = random.gauss(50, 10)
 
-                # anomaly injection
                 if random.random() < 0.05:
                     latency = random.randint(150, 300)
 
                 protocol = random.choice(["TCP", "UDP"])
                 packet_loss = 1 if random.random() < 0.02 else 0
 
-                data.append([
+                row = (
                     timestamp, src_ip, dst_ip,
                     packet_size, latency,
                     protocol, packet_loss
-                ])
+                )
 
-            df = pd.DataFrame(data, columns=[
+                data.append(row)
+
+            # 🔥 INSERT INTO DB
+            db = Database()
+            for row in data:
+                db.insert_data(row)
+
+            print("✅ Data inserted into DB")
+
+            return pd.DataFrame(data, columns=[
                 "timestamp", "src_ip", "dst_ip",
                 "packet_size", "latency",
                 "protocol", "packet_loss"
             ])
-
-            return df
 
         except Exception as e:
             print(f"❌ Error generating data: {e}")
