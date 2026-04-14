@@ -2,3 +2,4 @@ pandas
 scikit-learn
 streamlit
 scapy
+psycopg2-binary
