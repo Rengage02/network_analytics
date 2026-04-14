@@ -27,7 +27,7 @@ def load_data():
 
 
 def main():
-    st.title("📡 Network Operations Center Dashboard")
+    st.title("📡 Network Operations Center Dashboard NOC-D")
 
     # Sidebar filters
     st.sidebar.header("⚙️ Filters")
