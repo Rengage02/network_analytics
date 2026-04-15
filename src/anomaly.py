@@ -1,20 +1,26 @@
-from sklearn.ensemble import IsolationForest
-
+# src/anomaly.py
 
 class AnomalyDetector:
-    def __init__(self, contamination=0.05):
-        self.model = IsolationForest(contamination=contamination, random_state=42)
+    def __init__(self):
+        pass
 
-    def fit_predict(self, df):
-        try:
-            if df is None or df.empty:
-                raise ValueError("Input DataFrame is empty")
+    def detect(self, data):
+        """
+        data = {
+            latency,
+            packet_loss,
+            packet_size
+        }
+        """
 
-            features = df[["latency", "packet_size"]]
-            df["anomaly"] = self.model.fit_predict(features)
+        latency = data.get("latency", 0)
+        packet_loss = data.get("packet_loss", 0)
 
-            return df
+        # 🔥 Rule-based detection
+        if latency > 150:
+            return True, "HIGH"
 
-        except Exception as e:
-            print(f"❌ Anomaly detection error: {e}")
-            return df
+        if packet_loss > 0:
+            return True, "MEDIUM"
+
+        return False, "NORMAL"

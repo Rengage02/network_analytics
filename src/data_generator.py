@@ -1,67 +1,64 @@
-import pandas as pd
+import time
 import random
-from datetime import datetime, timedelta
-import sys
+from datetime import datetime
 import os
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from src.DB import Database
+
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 
 class DataGenerator:
-    def __init__(self, rows=1000):
-        self.rows = rows
+    LOG_FILE = os.path.join(BASE_DIR, "data", "router.log")
 
-    def generate(self):
-        try:
-            data = []
-            base_time = datetime.now()
+    def __init__(self, delay=1):
+        self.delay = delay  # seconds between logs
 
-            for i in range(self.rows):
-                timestamp = base_time + timedelta(seconds=i)
+    def generate_log(self):
+        # Current timestamp
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-                src_ip = f"192.168.1.{random.randint(1, 255)}"
-                dst_ip = f"10.0.0.{random.randint(1, 255)}"
+        # Simulated network fields
+        src_ip = f"192.168.1.{random.randint(1, 255)}"
+        dst_ip = f"10.0.0.{random.randint(1, 255)}"
 
-                packet_size = random.randint(64, 1500)
-                latency = random.gauss(50, 10)
+        packet_size = random.randint(64, 1500)
+        latency = round(random.gauss(50, 10), 2)
 
-                if random.random() < 0.05:
-                    latency = random.randint(150, 300)
+        # Inject anomaly (latency spike)
+        if random.random() < 0.1:
+            latency = random.randint(150, 300)
 
-                protocol = random.choice(["TCP", "UDP"])
-                packet_loss = 1 if random.random() < 0.02 else 0
+        protocol = random.choice(["TCP", "UDP"])
+        packet_loss = 1 if random.random() < 0.05 else 0
 
-                row = (
-                    timestamp, src_ip, dst_ip,
-                    packet_size, latency,
-                    protocol, packet_loss
-                )
+        # Final log format
+        log = (
+            f"{timestamp} "
+            f"SRC={src_ip} DST={dst_ip} "
+            f"SIZE={packet_size} LAT={latency} "
+            f"PROTO={protocol} LOSS={packet_loss}"
+        )
 
-                data.append(row)
+        return log
 
-            # 🔥 INSERT INTO DB
-            db = Database()
-            for row in data:
-                db.insert_data(row)
+    def run(self):
+        print("📡 Generating real-time logs... (Press CTRL+C to stop)")
 
-            print("✅ Data inserted into DB")
+        # Ensure data folder exists
+        os.makedirs("data", exist_ok=True)
 
-            return pd.DataFrame(data, columns=[
-                "timestamp", "src_ip", "dst_ip",
-                "packet_size", "latency",
-                "protocol", "packet_loss"
-            ])
+        while True:
+            log = self.generate_log()
 
-        except Exception as e:
-            print(f"❌ Error generating data: {e}")
-            return None
+            # Write to log file
+            with open(self.LOG_FILE, "a") as f:
+                f.write(log + "\n")
 
-    def save_to_csv(self, df, path="data/network_data.csv"):
-        try:
-            if df is None:
-                raise ValueError("DataFrame is empty")
+            # Print for visibility
+            print("Generated:", log)
+            print("Writing to:", self.LOG_FILE)
+            # Wait before next log
+            time.sleep(self.delay)
 
-            df.to_csv(path, index=False)
-            print("✅ Data saved to CSV")
 
-        except Exception as e:
-            print(f"❌ Error saving CSV: {e}")
+if __name__ == "__main__":
+    generator = DataGenerator(delay=1)
+    generator.run()

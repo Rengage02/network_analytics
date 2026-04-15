@@ -11,7 +11,19 @@ class AlertService:
         self.password = os.getenv("EMAIL_PASS")
         self.receiver = self.sender
 
+        self.last_sent_time = 0  # 🔥 NEW
+        self.cooldown = 60  # seconds (1 min)
+
     def send_alert(self, message):
+        import time
+
+        current_time = time.time()
+
+        # 🔥 Rate limiting
+        if current_time - self.last_sent_time < self.cooldown:
+            print("⏳ Alert skipped (cooldown active)")
+            return
+
         try:
             if not self.sender or not self.password:
                 print("⚠️ Email credentials missing")
@@ -28,6 +40,9 @@ class AlertService:
                 server.send_message(msg)
 
             print("✅ Alert sent")
+
+            # 🔥 update last sent time
+            self.last_sent_time = current_time
 
         except Exception as e:
             print("❌ Alert failed:", e)

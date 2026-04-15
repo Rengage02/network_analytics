@@ -3,12 +3,9 @@ import os
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import streamlit as st
 import time
-from src.data_generator import DataGenerator
 from src.analytics import NetworkAnalytics
-from src.anomaly import AnomalyDetector
 from src.DB import Database
 import pandas as pd
-from src.alert import AlertService
 
 
 st.set_page_config(page_title="Network NOC Dashboard", layout="wide")
@@ -28,11 +25,10 @@ def load_data():
 
         df = pd.DataFrame(data, columns=[
             "id", "timestamp", "src_ip", "dst_ip",
-            "packet_size", "latency", "protocol", "packet_loss"
+            "packet_size", "latency", "protocol", "packet_loss",
+            "anomaly", "severity"
         ])
-
-        detector = AnomalyDetector()
-        df = detector.fit_predict(df)
+        df["timestamp"] = pd.to_datetime(df["timestamp"])
 
         return df
 
@@ -43,6 +39,7 @@ def load_data():
 
 def main():
     st.title("📡 Network Operations Center Dashboard NOC")
+    st.caption(f"Last updated: {time.strftime('%Y-%m-%d %H:%M:%S')}")
 
     # Sidebar filters
     st.sidebar.header("⚙️ Filters")
@@ -65,24 +62,28 @@ def main():
 
     # Apply filters
     df = df[df["protocol"].isin(protocol_filter)]
+    filtered_df = df[df["latency"] >= latency_threshold]
+
 
     analytics = NetworkAnalytics(df)
 
     # 🔷 KPIs
     kpis = analytics.calculate_kpis()
-
     st.subheader("📊 KPIs")
-
     col1, col2, col3, col4 = st.columns(4)
-
     col1.metric("Avg Latency", f"{kpis.get('avg_latency', 0):.2f} ms")
     col2.metric("Max Latency", f"{kpis.get('max_latency', 0):.2f} ms")
     col3.metric("Packets", kpis.get("total_packets", 0))
     col4.metric("Packet Loss %", f"{kpis.get('packet_loss_rate', 0):.2f}")
-
+    col5 = st.columns(5)[-1]
+    col5.metric("Anomalies", len(df[df["anomaly"] == True]))
+    # THEN show severity
+    st.subheader("📊 Severity Distribution")
+    st.bar_chart(df["severity"].value_counts())
     # 🔷 Latency Chart
     st.subheader("📈 Latency Trend")
-    st.line_chart(df["latency"])
+    df_sorted = df.sort_values("timestamp")
+    st.line_chart(df_sorted.set_index("timestamp")["latency"])
 
     # 🔷 Protocol Chart
     st.subheader("🌐 Protocol Distribution")
@@ -92,39 +93,25 @@ def main():
     st.subheader("🔥 Top Talkers")
     st.dataframe(analytics.top_talkers())
 
-    # 🔷 Anomaly Detection
-    st.subheader("🚨 Anomaly Detection")
+    st.subheader("🚨 Alerts")
+    # 🔴 Critical
+    critical = filtered_df[filtered_df["severity"] == "HIGH"].sort_values(by="timestamp", ascending=False)
+    warning = filtered_df[filtered_df["severity"] == "MEDIUM"].sort_values(by="timestamp", ascending=False)
 
-    if "anomaly" in df.columns:
-        anomalies = df[(df["anomaly"] == -1) & (df["latency"] > latency_threshold)]
-    else:
-        anomalies = pd.DataFrame()
+    col1, col2 = st.columns(2)
 
-    alert = AlertService()
+    with col1:
+        if len(critical) > 0:
+            st.error(f"🔴 Critical Issues: {len(critical)}")
+        else:
+            st.success("🟢 No critical issues")
+        if not critical.empty:
+            st.dataframe(critical.head(5), use_container_width=True)
 
-    if not anomalies.empty:
-        st.error(f"{len(anomalies)} critical anomalies detected!")
-
-        if "last_alert" not in st.session_state:
-            st.session_state.last_alert = 0
-
-        current_time = time.time()
-
-        if current_time - st.session_state.last_alert > 60:
-            alert.send_alert(
-                f"""
-            🚨 Network Alert
-
-            Anomalies: {len(anomalies)}
-            Max Latency: {anomalies['latency'].max()}
-            Top Source IP: {anomalies['src_ip'].iloc[0]}
-            """
-            )
-            st.session_state.last_alert = current_time
-
-        st.dataframe(anomalies.head(10))
-    else:
-        st.success("No critical anomalies")
+    with col2:
+        st.warning(f"🟡 Warnings: {len(warning)}")
+        if not warning.empty:
+            st.dataframe(warning.head(5), use_container_width=True)
 
     # 🔷 Raw Data
     with st.expander("📄 Raw Data"):
