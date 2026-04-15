@@ -8,6 +8,7 @@ from src.analytics import NetworkAnalytics
 from src.anomaly import AnomalyDetector
 from src.DB import Database
 import pandas as pd
+from src.alert import AlertService
 
 
 st.set_page_config(page_title="Network NOC Dashboard", layout="wide")
@@ -21,6 +22,9 @@ def load_data():
     try:
         db = Database()
         data = db.fetch_data()
+
+        if not data:
+            return pd.DataFrame()
 
         df = pd.DataFrame(data, columns=[
             "id", "timestamp", "src_ip", "dst_ip",
@@ -53,9 +57,11 @@ def main():
         "Latency Threshold (ms)",
         50, 300, 150
     )
-    generator = DataGenerator(rows=100)
-    generator.generate()
     df = load_data()
+
+    if df.empty:
+        st.warning("⚠️ No data available")
+        return
 
     # Apply filters
     df = df[df["protocol"].isin(protocol_filter)]
@@ -89,10 +95,25 @@ def main():
     # 🔷 Anomaly Detection
     st.subheader("🚨 Anomaly Detection")
 
-    anomalies = df[(df["anomaly"] == -1) & (df["latency"] > latency_threshold)]
+    if "anomaly" in df.columns:
+        anomalies = df[(df["anomaly"] == -1) & (df["latency"] > latency_threshold)]
+    else:
+        anomalies = pd.DataFrame()
+
+    alert = AlertService()
 
     if not anomalies.empty:
         st.error(f"{len(anomalies)} critical anomalies detected!")
+
+        if "last_alert" not in st.session_state:
+            st.session_state.last_alert = 0
+
+        current_time = time.time()
+
+        if current_time - st.session_state.last_alert > 60:
+            alert.send_alert(f"{len(anomalies)} anomalies detected in network!")
+            st.session_state.last_alert = current_time
+
         st.dataframe(anomalies.head(10))
     else:
         st.success("No critical anomalies")
