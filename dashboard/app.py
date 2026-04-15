@@ -111,7 +111,15 @@ def main():
         current_time = time.time()
 
         if current_time - st.session_state.last_alert > 60:
-            alert.send_alert(f"{len(anomalies)} anomalies detected in network!")
+            alert.send_alert(
+                f"""
+            🚨 Network Alert
+
+            Anomalies: {len(anomalies)}
+            Max Latency: {anomalies['latency'].max()}
+            Top Source IP: {anomalies['src_ip'].iloc[0]}
+            """
+            )
             st.session_state.last_alert = current_time
 
         st.dataframe(anomalies.head(10))
