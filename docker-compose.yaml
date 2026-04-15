@@ -28,3 +28,9 @@ services:
       - ./nginx.conf:/etc/nginx/nginx.conf
     depends_on:
       - dashboard
+  generator:
+  build:
+    context: .
+    dockerfile: Dockerfile.capture
+  container_name: noc_generator
+  command: python src/data_generator.py
